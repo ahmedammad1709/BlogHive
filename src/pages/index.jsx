@@ -152,7 +152,7 @@ export default function HomePage() {
                 <span className="text-white font-bold text-lg">B</span>
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                BlogHive
+                BlogSyte
               </span>
             </Link>
 
@@ -234,7 +234,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-purple-600 dark:from-white dark:to-purple-400 bg-clip-text text-transparent">
-              Why Choose BlogHive?
+              Why Choose BlogSyte?
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
               Experience the next generation of blogging with cutting-edge features designed for modern creators.
@@ -388,7 +388,7 @@ export default function HomePage() {
                     </div>
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">Email</p>
-                      <p className="text-gray-600 dark:text-gray-300">hello@bloghive.com</p>
+                      <p className="text-gray-600 dark:text-gray-300">hello@blogsyte.com</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
@@ -426,7 +426,7 @@ export default function HomePage() {
                 <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-lg">B</span>
                 </div>
-                <span className="text-xl font-bold">BlogHive</span>
+                <span className="text-xl font-bold">BlogSyte</span>
               </div>
               <p className="text-gray-400 mb-6 max-w-md">
                 Empowering creators to share their stories with the world. Join our community and start your blogging journey today.
@@ -472,7 +472,7 @@ export default function HomePage() {
 
           <div className="border-t border-gray-800 mt-12 pt-8 text-center">
             <p className="text-gray-400">
-              © 2025 BlogHive. Made with <Heart className="inline h-4 w-4 text-red-500" /> for creators worldwide.
+              © 2025 BlogSyte. Made with <Heart className="inline h-4 w-4 text-red-500" /> for creators worldwide.
             </p>
           </div>
         </div>

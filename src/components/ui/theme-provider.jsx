@@ -8,7 +8,7 @@ const ThemeProviderContext = createContext({
 export function ThemeProvider({
   children,
   defaultTheme = "light",
-  storageKey = "bloghive-ui-theme",
+  storageKey = "blogsyte-ui-theme",
   ...props
 }) {
   const [theme, setTheme] = useState(() => {

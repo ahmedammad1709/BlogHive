@@ -38,7 +38,7 @@ const Navbar = () => {
               <span className="text-white font-bold text-lg">B</span>
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              BlogHive
+              BlogSyte
             </span>
           </Link>
 

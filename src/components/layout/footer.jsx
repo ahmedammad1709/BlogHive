@@ -12,7 +12,7 @@ const Footer = () => {
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">B</span>
               </div>
-              <span className="text-xl font-bold">BlogHive</span>
+                              <span className="text-xl font-bold">BlogSyte</span>
             </div>
             <p className="text-gray-300 mb-4 max-w-md">
               Where ideas buzz. Join thousands of creators sharing their thoughts and stories with the world.
@@ -87,7 +87,7 @@ const Footer = () => {
 
         <div className="border-t border-gray-800 mt-8 pt-8 text-center">
           <p className="text-gray-300">
-            © 2025 BlogHive. All rights reserved.
+            © 2025 BlogSyte. All rights reserved.
           </p>
         </div>
       </div>
