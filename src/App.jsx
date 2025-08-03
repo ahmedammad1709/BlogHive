@@ -1,14 +1,41 @@
-import { useState } from 'react'
+import { ToastProvider } from './components/ui/toast';
+import { TooltipProvider } from './components/ui/tooltip';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import './App.css'
+// Pages
+import HomePage from './pages/index';
+import NotFound from './pages/NotFound';
+import LoginPage from './pages/login';
+import SignupPage from './pages/signup';
+import VerifyPage from './pages/verify';
+import DashboardPage from './pages/dashboard';
+import AdminPage from './pages/admin';
+import CreateBlogPage from './pages/create';
+import ContactPage from './pages/contact';
 
-function App() {
-  return (
-    <div>
-      <h1>Welcome to BlogHive 🐝</h1>
-    </div>
-  );
+const queryClient = new QueryClient();
 
-}
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/verify" element={<VerifyPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/create" element={<CreateBlogPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
-export default App
+export default App;
