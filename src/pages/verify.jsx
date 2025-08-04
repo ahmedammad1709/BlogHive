@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, ArrowLeft, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { useAuth } from '../context/AuthContext';
 
 // Animated background component
 const AnimatedBackground = () => (
@@ -15,6 +16,7 @@ const AnimatedBackground = () => (
 const Verify = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { login } = useAuth();
   const [isVisible, setIsVisible] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -87,7 +89,11 @@ const Verify = () => {
         setSuccess(true);
         // Clear pending user data
         localStorage.removeItem('pendingUser');
-        // Redirect to login after 2 seconds
+        // Login user using context
+        if (data.user) {
+          login(data.user);
+        }
+        // Redirect to dashboard after 2 seconds
         setTimeout(() => {
           navigate('/login');
         }, 2000);
