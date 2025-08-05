@@ -70,7 +70,7 @@ const Admin = () => {
     totalBlogs: 0,
     bannedUsers: 0,
     totalLikes: 0,
-    totalViews: 0
+    totalComments: 0
   });
   const [users, setUsers] = useState([]);
   const [blogs, setBlogs] = useState([]);
@@ -245,8 +245,61 @@ const Admin = () => {
     setBlogToDelete(null);
   };
 
-  const handleSendNotification = () => {
-    addToast('Notification feature coming soon!', 'default');
+  const handleSendNotification = async () => {
+    if (!notificationData.title.trim() || !notificationData.description.trim()) {
+      addToast('Please fill in both title and description', 'error');
+      return;
+    }
+
+    if (!notificationData.sendToAll && notificationData.selectedUsers.length === 0) {
+      addToast('Please select users to send notification to', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/notifications/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: notificationData.title,
+          description: notificationData.description,
+          sendToAll: notificationData.sendToAll,
+          selectedUsers: notificationData.selectedUsers
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        addToast(`Notification sent successfully to ${data.recipientCount} users!`, 'success');
+        // Reset form
+        setNotificationData({
+          title: '',
+          description: '',
+          sendToAll: false,
+          selectedUsers: []
+        });
+      } else {
+        addToast(data.message || 'Failed to send notification', 'error');
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      addToast('Network error. Please try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUserSelection = (userId) => {
+    setNotificationData(prev => ({
+      ...prev,
+      selectedUsers: prev.selectedUsers.includes(userId)
+        ? prev.selectedUsers.filter(id => id !== userId)
+        : [...prev.selectedUsers, userId]
+    }));
   };
 
   const handleLogout = () => {
@@ -438,16 +491,16 @@ const Admin = () => {
                 <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl transform hover:scale-105 transition-all duration-300">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-purple-100 text-sm font-medium">Total Views</p>
-                      <p className="text-3xl font-bold">{stats.totalViews.toLocaleString()}</p>
+                      <p className="text-purple-100 text-sm font-medium">Total Comments</p>
+                      <p className="text-3xl font-bold">{stats.totalComments.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-white/20 rounded-xl">
-                      <Eye className="h-8 w-8" />
+                      <MessageSquare className="h-8 w-8" />
                     </div>
                   </div>
                   <div className="flex items-center mt-4">
                     <TrendingUp className="h-4 w-4 text-purple-300" />
-                    <span className="text-sm text-purple-100 ml-2">Content reach</span>
+                    <span className="text-sm text-purple-100 ml-2">User engagement</span>
                   </div>
                 </div>
               </div>
@@ -684,7 +737,7 @@ const Admin = () => {
                           <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Blog</th>
                           <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Author</th>
                           <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Category</th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Views</th>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Comments</th>
                           <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Likes</th>
                           <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Date</th>
                           <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
@@ -707,8 +760,8 @@ const Admin = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               <div className="flex items-center space-x-1">
-                                <Eye className="h-4 w-4 text-gray-400" />
-                                <span>{blog.views.toLocaleString()}</span>
+                                <MessageSquare className="h-4 w-4 text-gray-400" />
+                                <span>{blog.comments.toLocaleString()}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -787,7 +840,14 @@ const Admin = () => {
                       <input
                         type="checkbox"
                         checked={notificationData.sendToAll}
-                        onChange={(e) => setNotificationData({...notificationData, sendToAll: e.target.checked})}
+                        onChange={(e) => {
+                          const sendToAll = e.target.checked;
+                          setNotificationData({
+                            ...notificationData, 
+                            sendToAll,
+                            selectedUsers: sendToAll ? [] : notificationData.selectedUsers
+                          });
+                        }}
                         className="rounded border-gray-300 text-pink-600 focus:ring-pink-500"
                       />
                       <div>
@@ -799,11 +859,34 @@ const Admin = () => {
                     <Button
                       onClick={handleSendNotification}
                       className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 shadow-lg py-3 rounded-xl"
-                      disabled={!notificationData.title || !notificationData.description}
+                      disabled={!notificationData.title || !notificationData.description || loading}
                     >
-                      <Send className="h-5 w-5" />
-                      <span>Send Notification</span>
+                      {loading ? (
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <>
+                          <Send className="h-5 w-5" />
+                          <span>
+                            {notificationData.sendToAll 
+                              ? 'Send to All Users' 
+                              : `Send to ${notificationData.selectedUsers.length} Selected Users`
+                            }
+                          </span>
+                        </>
+                      )}
                     </Button>
+                    
+                    {/* Summary */}
+                    {!notificationData.sendToAll && notificationData.selectedUsers.length > 0 && (
+                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-800">
+                          <strong>{notificationData.selectedUsers.length}</strong> users selected
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -811,15 +894,20 @@ const Admin = () => {
                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-xl border border-white/20">
                   <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center space-x-2">
                     <Users className="h-5 w-5 text-blue-600" />
-                    <span>Select Users</span>
+                    <span>Select Users {notificationData.sendToAll && '(Disabled - Sending to all users)'}</span>
                   </h3>
-                  <div className="bg-white/50 backdrop-blur-sm rounded-xl p-4 max-h-96 overflow-y-auto border border-gray-200">
+                  <div className={`bg-white/50 backdrop-blur-sm rounded-xl p-4 max-h-96 overflow-y-auto border border-gray-200 ${
+                    notificationData.sendToAll ? 'opacity-50 pointer-events-none' : ''
+                  }`}>
                     {users.filter(user => !user.banned).map((user) => (
                       <div key={user.id} className="flex items-center space-x-3 py-3 hover:bg-gray-50/50 rounded-lg px-2 transition-colors">
                         <input
                           type="checkbox"
                           id={`user-${user.id}`}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={notificationData.selectedUsers.includes(user.id)}
+                          onChange={() => handleUserSelection(user.id)}
+                          disabled={notificationData.sendToAll}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                         />
                         <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
                           {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}

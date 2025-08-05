@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
-import { Save, Eye } from 'lucide-react';
+import { Save, Eye, ChevronDown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 const Create = () => {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
+    category: '',
     tags: ''
   });
+
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+
+  const categories = [
+    'Technology', 'Programming', 'Design', 'Personal Growth', 
+    'Travel', 'Tutorials', 'News & Trends', 'Productivity', 
+    'AI & Machine Learning', 'Others'
+  ];
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -19,6 +28,14 @@ const Create = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
+  };
+
+  const handleCategorySelect = (category) => {
+    setFormData({
+      ...formData,
+      category: category
+    });
+    setShowCategoryDropdown(false);
   };
 
   return (
@@ -47,6 +64,39 @@ const Create = () => {
                     placeholder="Enter your post title"
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category
+                  </label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-left flex items-center justify-between"
+                    >
+                      <span className={formData.category ? 'text-gray-900' : 'text-gray-500'}>
+                        {formData.category || 'Select a category'}
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    </button>
+
+                    {showCategoryDropdown && (
+                      <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                        {categories.map((category) => (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => handleCategorySelect(category)}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                          >
+                            {category}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>

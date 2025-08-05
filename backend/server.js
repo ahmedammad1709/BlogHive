@@ -523,12 +523,12 @@ app.get('/api/admin/stats', async (req, res) => {
     const bannedUsers = parseInt(bannedUsersResult.rows[0].count);
 
     // Get total likes
-    const totalLikesResult = await pool.query('SELECT COALESCE(SUM(likes), 0) as total FROM blog_posts');
+    const totalLikesResult = await pool.query('SELECT COUNT(*) as total FROM likes');
     const totalLikes = parseInt(totalLikesResult.rows[0].total);
 
-    // Get total views
-    const totalViewsResult = await pool.query('SELECT COALESCE(SUM(views), 0) as total FROM blog_posts');
-    const totalViews = parseInt(totalViewsResult.rows[0].total);
+    // Get total comments
+    const totalCommentsResult = await pool.query('SELECT COUNT(*) as total FROM comments');
+    const totalComments = parseInt(totalCommentsResult.rows[0].total);
 
     // Get daily posts for last 7 days
     const dailyPostsQuery = `
@@ -559,7 +559,7 @@ app.get('/api/admin/stats', async (req, res) => {
         totalBlogs,
         bannedUsers,
         totalLikes,
-        totalViews
+        totalComments
       },
       dailyPosts,
       userSignups
@@ -690,13 +690,29 @@ app.get('/api/admin/blogs', async (req, res) => {
         bp.title,
         bp.description,
         bp.category,
-        bp.views,
-        bp.likes,
         bp.created_at,
         u.name as author_name,
-        u.email as author_email
+        u.email as author_email,
+        COALESCE(l.likes_count, 0) as likes,
+        COALESCE(c.comments_count, 0) as comments,
+        COALESCE(v.views_count, 0) as views
       FROM blog_posts bp
       LEFT JOIN users u ON bp.author_id = u.id
+      LEFT JOIN (
+        SELECT blog_id, COUNT(*) as likes_count 
+        FROM likes 
+        GROUP BY blog_id
+      ) l ON bp.id = l.blog_id
+      LEFT JOIN (
+        SELECT blog_id, COUNT(*) as comments_count 
+        FROM comments 
+        GROUP BY blog_id
+      ) c ON bp.id = c.blog_id
+      LEFT JOIN (
+        SELECT blog_id, COUNT(*) as views_count 
+        FROM views 
+        GROUP BY blog_id
+      ) v ON bp.id = v.blog_id
       ORDER BY bp.created_at DESC
     `;
     
@@ -1182,6 +1198,199 @@ app.delete('/api/user/delete-account', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Failed to delete account. Please try again.' 
+    });
+  }
+});
+
+// ========== NOTIFICATION SYSTEM ROUTES ==========
+
+// Send notification endpoint
+app.post('/api/admin/notifications/send', async (req, res) => {
+  try {
+    const { title, description, sendToAll, selectedUsers } = req.body;
+    
+    if (!title || !description) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Title and description are required' 
+      });
+    }
+
+    if (!sendToAll && (!selectedUsers || selectedUsers.length === 0)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please select users to send notification to' 
+      });
+    }
+
+    let recipientCount = 0;
+    let recipients = [];
+
+    if (sendToAll) {
+      // Get all active (non-banned) users
+      const allUsersResult = await pool.query(
+        'SELECT id, name, email FROM users WHERE banned = false'
+      );
+      recipients = allUsersResult.rows;
+      recipientCount = recipients.length;
+    } else {
+      // Get selected users
+      const selectedUsersResult = await pool.query(
+        'SELECT id, name, email FROM users WHERE id = ANY($1) AND banned = false',
+        [selectedUsers]
+      );
+      recipients = selectedUsersResult.rows;
+      recipientCount = recipients.length;
+    }
+
+    if (recipientCount === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No valid recipients found' 
+      });
+    }
+
+    // Store notification in database
+    const notificationResult = await pool.query(
+      'INSERT INTO notifications (title, description, sent_at) VALUES ($1, $2, NOW()) RETURNING id',
+      [title, description]
+    );
+
+    const notificationId = notificationResult.rows[0].id;
+
+    // Create notification records for each recipient
+    const notificationRecords = recipients.map(user => ({
+      notification_id: notificationId,
+      user_id: user.id,
+      read: false,
+      created_at: new Date()
+    }));
+
+    // Insert notification records in batches
+    for (const record of notificationRecords) {
+      await pool.query(
+        'INSERT INTO user_notifications (notification_id, user_id, read, created_at) VALUES ($1, $2, $3, $4)',
+        [record.notification_id, record.user_id, record.read, record.created_at]
+      );
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Notification sent successfully',
+      recipientCount,
+      notificationId
+    });
+
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to send notification. Please try again.' 
+    });
+  }
+});
+
+// Get notifications for a user
+app.get('/api/user/notifications/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Check if user exists
+    const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    const notificationsResult = await pool.query(`
+      SELECT 
+        un.id,
+        n.title,
+        n.description,
+        n.sent_at,
+        un.read,
+        un.created_at
+      FROM notifications n
+      JOIN user_notifications un ON n.id = un.notification_id
+      WHERE un.user_id = $1
+      ORDER BY un.created_at DESC
+    `, [userId]);
+
+    res.json({ 
+      success: true, 
+      notifications: notificationsResult.rows 
+    });
+
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch notifications.' 
+    });
+  }
+});
+
+// Mark notification as read
+app.put('/api/user/notifications/:userNotificationId/read', async (req, res) => {
+  try {
+    const { userNotificationId } = req.params;
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID is required' 
+      });
+    }
+
+    const result = await pool.query(
+      'UPDATE user_notifications SET read = true WHERE id = $1 AND user_id = $2 RETURNING *',
+      [userNotificationId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Notification not found' 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Notification marked as read' 
+    });
+
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to mark notification as read.' 
+    });
+  }
+});
+
+// Get unread notification count for a user
+app.get('/api/user/notifications/:userId/unread-count', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const result = await pool.query(
+      'SELECT COUNT(*) as count FROM user_notifications WHERE user_id = $1 AND read = false',
+      [userId]
+    );
+
+    res.json({ 
+      success: true, 
+      unreadCount: parseInt(result.rows[0].count) 
+    });
+
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch unread count.' 
     });
   }
 });

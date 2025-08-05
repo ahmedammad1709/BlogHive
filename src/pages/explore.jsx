@@ -37,7 +37,9 @@ import {
   Star,
   Award,
   Trophy,
-  Crown
+  Crown,
+  Brain,
+  MoreHorizontal
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../context/AuthContext';
@@ -50,13 +52,16 @@ const Explore = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('latest');
-  const [showFilters, setShowFilters] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [likedPosts, setLikedPosts] = useState(new Set());
   const [bookmarkedPosts, setBookmarkedPosts] = useState(new Set());
   const [expandedPosts, setExpandedPosts] = useState(new Set());
   const [showComments, setShowComments] = useState(new Set());
   const [comments, setComments] = useState({});
   const [commentTexts, setCommentTexts] = useState({});
+  const [visibleBlogs, setVisibleBlogs] = useState(3);
+  const [hasMoreBlogs, setHasMoreBlogs] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -77,18 +82,15 @@ const Explore = () => {
   const categories = [
     { id: 'all', name: 'All Categories', icon: Globe },
     { id: 'technology', name: 'Technology', icon: Code },
-    { id: 'lifestyle', name: 'Lifestyle', icon: Coffee },
-    { id: 'education', name: 'Education', icon: GraduationCap },
-    { id: 'health', name: 'Health', icon: Activity },
-    { id: 'art', name: 'Art & Design', icon: Palette },
+    { id: 'programming', name: 'Programming', icon: Code },
+    { id: 'design', name: 'Design', icon: Palette },
+    { id: 'personal growth', name: 'Personal Growth', icon: Target },
     { id: 'travel', name: 'Travel', icon: Plane },
-    { id: 'business', name: 'Business', icon: Briefcase }
-  ];
-
-  const sortOptions = [
-    { id: 'latest', name: 'Latest', icon: Clock },
-    { id: 'popular', name: 'Most Popular', icon: TrendingUp },
-    { id: 'trending', name: 'Trending', icon: Zap }
+    { id: 'tutorials', name: 'Tutorials', icon: BookOpen },
+    { id: 'news & trends', name: 'News & Trends', icon: TrendingUp },
+    { id: 'productivity', name: 'Productivity', icon: Sparkles },
+    { id: 'ai & machine learning', name: 'AI & Machine Learning', icon: Brain },
+    { id: 'others', name: 'Others', icon: MoreHorizontal }
   ];
 
   useEffect(() => {
@@ -410,6 +412,52 @@ const Explore = () => {
       }
     });
 
+  // Get only the visible blogs
+  const displayedBlogs = filteredAndSortedBlogs.slice(0, visibleBlogs);
+
+  // Check if there are more blogs to load
+  useEffect(() => {
+    setHasMoreBlogs(visibleBlogs < filteredAndSortedBlogs.length);
+  }, [visibleBlogs, filteredAndSortedBlogs.length]);
+
+  // Infinite scroll handler
+  const handleScroll = () => {
+    if (loadingMore || !hasMoreBlogs) return;
+
+    const scrollTop = window.scrollY;
+    const windowHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+
+    // Load more when user is near bottom (within 100px)
+    if (scrollTop + windowHeight >= documentHeight - 100) {
+      loadMoreBlogs();
+    }
+  };
+
+  // Load more blogs with animation
+  const loadMoreBlogs = () => {
+    if (loadingMore || !hasMoreBlogs) return;
+
+    setLoadingMore(true);
+    
+    // Simulate loading delay for smooth animation
+    setTimeout(() => {
+      setVisibleBlogs(prev => prev + 3);
+      setLoadingMore(false);
+    }, 500);
+  };
+
+  // Add scroll event listener
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [loadingMore, hasMoreBlogs]);
+
+  // Reset visible blogs when filters change
+  useEffect(() => {
+    setVisibleBlogs(3);
+  }, [searchTerm, selectedCategory, sortBy]);
+
   const getCategoryIcon = (categoryName) => {
     const category = categories.find(cat => cat.name.toLowerCase().includes(categoryName.toLowerCase()));
     return category ? category.icon : Globe;
@@ -418,12 +466,15 @@ const Explore = () => {
   const getCategoryColor = (category) => {
     const colors = {
       'Technology': 'from-blue-500 to-purple-600',
-      'Lifestyle': 'from-green-500 to-teal-600',
-      'Education': 'from-orange-500 to-red-600',
-      'Health': 'from-pink-500 to-rose-600',
-      'Art': 'from-purple-500 to-indigo-600',
+      'Programming': 'from-indigo-500 to-blue-600',
+      'Design': 'from-purple-500 to-pink-600',
+      'Personal Growth': 'from-green-500 to-teal-600',
       'Travel': 'from-yellow-500 to-orange-600',
-      'Business': 'from-gray-500 to-gray-700'
+      'Tutorials': 'from-orange-500 to-red-600',
+      'News & Trends': 'from-red-500 to-pink-600',
+      'Productivity': 'from-emerald-500 to-green-600',
+      'AI & Machine Learning': 'from-violet-500 to-purple-600',
+      'Others': 'from-gray-500 to-gray-700'
     };
     return colors[category] || 'from-gray-500 to-gray-600';
   };
@@ -495,8 +546,8 @@ const Explore = () => {
             {/* Category Filter */}
             <div className="relative">
               <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center space-x-2 px-4 py-3 border border-gray-200 rounded-xl bg-white/50 backdrop-blur-sm hover:bg-white/70 transition-colors"
+                onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                className="flex items-center space-x-2 px-4 py-3 border border-gray-200 rounded-xl bg-white/50 backdrop-blur-sm hover:bg-white/70 transition-colors w-full lg:w-auto"
               >
                 <Filter className="h-5 w-5 text-gray-600" />
                 <span className="text-gray-700">
@@ -505,8 +556,8 @@ const Explore = () => {
                 <ChevronDown className="h-4 w-4 text-gray-600" />
               </button>
 
-              {showFilters && (
-                <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-10">
+              {showCategoryDropdown && (
+                <div className="absolute top-full left-0 mt-2 w-full lg:w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-10">
                   <div className="p-2">
                     {categories.map((category) => {
                       const Icon = category.icon;
@@ -515,7 +566,7 @@ const Explore = () => {
                           key={category.id}
                           onClick={() => {
                             setSelectedCategory(category.id);
-                            setShowFilters(false);
+                            setShowCategoryDropdown(false);
                           }}
                           className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
                             selectedCategory === category.id
@@ -525,47 +576,6 @@ const Explore = () => {
                         >
                           <Icon className="h-4 w-4" />
                           <span>{category.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Sort Options */}
-            <div className="relative">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center space-x-2 px-4 py-3 border border-gray-200 rounded-xl bg-white/50 backdrop-blur-sm hover:bg-white/70 transition-colors"
-              >
-                <TrendingUp className="h-5 w-5 text-gray-600" />
-                <span className="text-gray-700">
-                  {sortOptions.find(option => option.id === sortBy)?.name || 'Latest'}
-                </span>
-                <ChevronDown className="h-4 w-4 text-gray-600" />
-              </button>
-
-              {showFilters && (
-                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-200 z-10">
-                  <div className="p-2">
-                    {sortOptions.map((option) => {
-                      const Icon = option.icon;
-                      return (
-                        <button
-                          key={option.id}
-                          onClick={() => {
-                            setSortBy(option.id);
-                            setShowFilters(false);
-                          }}
-                          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                            sortBy === option.id
-                              ? 'bg-purple-50 text-purple-700'
-                              : 'hover:bg-gray-50'
-                          }`}
-                        >
-                          <Icon className="h-4 w-4" />
-                          <span>{option.name}</span>
                         </button>
                       );
                     })}
@@ -583,7 +593,7 @@ const Explore = () => {
           </div>
         ) : (
           <div className="max-w-2xl mx-auto space-y-6">
-            {filteredAndSortedBlogs.map((blog) => {
+            {displayedBlogs.map((blog, index) => {
               const CategoryIcon = getCategoryIcon(blog.category);
               const isLiked = likedPosts.has(blog.id);
               const isBookmarked = bookmarkedPosts.has(blog.id);
@@ -595,7 +605,14 @@ const Explore = () => {
               return (
                 <article 
                   key={blog.id} 
-                  className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 overflow-hidden hover:shadow-2xl transition-all duration-300"
+                  className={`bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 overflow-hidden hover:shadow-2xl transition-all duration-300 transform ${
+                    index >= visibleBlogs - 3 ? 'animate-fade-in-up' : ''
+                  }`}
+                  style={{
+                    animationDelay: `${(index % 3) * 0.1}s`,
+                    opacity: index >= visibleBlogs - 3 ? 0 : 1,
+                    animation: index >= visibleBlogs - 3 ? 'fadeInUp 0.6s ease-out forwards' : 'none'
+                  }}
                 >
                   {/* Blog Content */}
                   <div className="p-6">
@@ -759,20 +776,32 @@ const Explore = () => {
                 </article>
               );
             })}
-          </div>
-        )}
 
-        {/* Load More Button */}
-        {filteredAndSortedBlogs.length > 0 && (
-          <div className="text-center mt-12">
-            <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 px-8 py-3 rounded-xl">
-              Load More Blogs
-            </Button>
+            {/* Loading More Indicator */}
+            {loadingMore && (
+              <div className="flex justify-center items-center py-8">
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                  <span className="text-gray-600">Loading more blogs...</span>
+                </div>
+              </div>
+            )}
+
+            {/* No More Blogs Message */}
+            {!hasMoreBlogs && displayedBlogs.length > 0 && (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <BookOpen className="h-8 w-8 text-purple-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No more blogs to show!</h3>
+                <p className="text-gray-600">You've reached the end of all available blogs.</p>
+              </div>
+            )}
           </div>
         )}
 
         {/* No Results */}
-        {filteredAndSortedBlogs.length === 0 && !blogsLoading && (
+        {displayedBlogs.length === 0 && !blogsLoading && (
           <div className="text-center py-20">
             <div className="w-24 h-24 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <BookOpen className="h-12 w-12 text-purple-600" />

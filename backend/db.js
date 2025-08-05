@@ -130,6 +130,46 @@ const createViewsTable = async () => {
   }
 };
 
+// Create notifications table for storing notifications
+const createNotificationsTable = async () => {
+  try {
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    
+    await pool.query(createTableQuery);
+    console.log('Notifications table created or already exists');
+  } catch (error) {
+    console.error('Error creating notifications table:', error);
+  }
+};
+
+// Create user_notifications table for tracking user notification status
+const createUserNotificationsTable = async () => {
+  try {
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS user_notifications (
+        id SERIAL PRIMARY KEY,
+        notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(notification_id, user_id)
+      );
+    `;
+    
+    await pool.query(createTableQuery);
+    console.log('User notifications table created or already exists');
+  } catch (error) {
+    console.error('Error creating user notifications table:', error);
+  }
+};
+
 // Initialize database
 const initDatabase = async () => {
   await createUsersTable();
@@ -137,6 +177,8 @@ const initDatabase = async () => {
   await createLikesTable();
   await createCommentsTable();
   await createViewsTable();
+  await createNotificationsTable();
+  await createUserNotificationsTable();
 };
 
 // Helper function to get blog statistics
