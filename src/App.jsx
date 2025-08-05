@@ -3,6 +3,7 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
 import HomePage from './pages/index';
@@ -14,6 +15,7 @@ import DashboardPage from './pages/dashboard';
 import AdminPage from './pages/admin';
 import CreateBlogPage from './pages/create';
 import ContactPage from './pages/contact';
+import ExplorePage from './pages/explore';
 
 const queryClient = new QueryClient();
 
@@ -28,9 +30,22 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/verify" element={<VerifyPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/admin" element={<AdminPage />} />
-              <Route path="/create" element={<CreateBlogPage />} />
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/explore" element={<ExplorePage />} />
+              <Route path="/create" element={
+                <ProtectedRoute>
+                  <CreateBlogPage />
+                </ProtectedRoute>
+              } />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

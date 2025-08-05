@@ -14,14 +14,20 @@ import {
   Upload,
   Eye,
   Trash2,
-  Save
+  Save,
+  Search,
+  Globe,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/ui/toast';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, logout, loading } = useAuth();
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [formData, setFormData] = useState({
     category: '',
@@ -29,34 +35,218 @@ const Dashboard = () => {
     description: ''
   });
   const [errors, setErrors] = useState({});
-  const [userPosts, setUserPosts] = useState([
-    {
-      id: 1,
-      title: "Getting Started with React",
-      category: "Programming",
-      views: 1250,
-      likes: 89,
-      comments: 23,
-      status: "published",
-      createdAt: "2024-01-15"
-    },
-    {
-      id: 2,
-      title: "Modern Web Design Trends",
-      category: "Design",
-      views: 890,
-      likes: 67,
-      comments: 15,
-      status: "published",
-      createdAt: "2024-01-10"
-    }
-  ]);
+  const [userPosts, setUserPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/login');
     }
   }, [user, loading, navigate]);
+
+  // Fetch user's blog posts and dashboard stats
+  useEffect(() => {
+    if (user) {
+      fetchUserPosts();
+      fetchDashboardStats();
+    }
+  }, [user]);
+
+  // Refresh posts data when switching to overview or blogs tab
+  useEffect(() => {
+    if (user && (activeTab === 'overview' || activeTab === 'blogs')) {
+      fetchUserPosts();
+    }
+  }, [activeTab, user]);
+
+  // Auto-refresh data every 30 seconds when on overview or blogs tab
+  useEffect(() => {
+    if (user && (activeTab === 'overview' || activeTab === 'blogs')) {
+      const interval = setInterval(() => {
+        fetchUserPosts();
+      }, 30000); // Refresh every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, user]);
+
+  const [dashboardStats, setDashboardStats] = useState({
+    totalBlogs: 0,
+    totalViews: 0,
+    totalLikes: 0,
+    totalComments: 0,
+    blogs: []
+  });
+
+  const fetchUserPosts = async (showToast = false) => {
+    if (!user?.id) return;
+    
+    setPostsLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/blog-posts/author/${user.id}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setUserPosts(data.posts);
+        if (showToast) {
+          addToast('Data refreshed successfully!', 'success');
+        }
+      } else {
+        console.error('Failed to fetch posts:', data.message);
+        if (showToast) {
+          addToast('Failed to refresh data', 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      if (showToast) {
+        addToast('Network error while refreshing data', 'error');
+      }
+    } finally {
+      setPostsLoading(false);
+    }
+  };
+
+  const fetchDashboardStats = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/user/dashboard/${user.id}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setDashboardStats(data.stats);
+      } else {
+        console.error('Failed to fetch dashboard stats:', data.message);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
+
+  const createBlogPost = async (postData) => {
+    setSubmitting(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/blog-posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: postData.title,
+          description: postData.description,
+          category: postData.category,
+          authorId: user.id,
+          authorName: user.name
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh user posts
+        await fetchUserPosts();
+        return { success: true, message: 'Blog post created successfully!' };
+      } else {
+        return { success: false, message: data.message || 'Failed to create blog post' };
+      }
+    } catch (error) {
+      console.error('Error creating blog post:', error);
+      return { success: false, message: 'Network error. Please try again.' };
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const updateBlogPost = async (postId, postData) => {
+    setSubmitting(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/blog-posts/${postId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: postData.title,
+          description: postData.description,
+          category: postData.category,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        await fetchUserPosts();
+        return { success: true, message: 'Blog post updated successfully!' };
+      } else {
+        return { success: false, message: data.message || 'Failed to update blog post' };
+      }
+    } catch (error) {
+      console.error('Error updating blog post:', error);
+      return { success: false, message: 'Network error. Please try again.' };
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const deleteBlogPost = async (postId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/blog-posts/${postId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        await fetchUserPosts();
+        return { success: true, message: 'Blog post deleted successfully!' };
+      } else {
+        return { success: false, message: data.message || 'Failed to delete blog post' };
+      }
+    } catch (error) {
+      console.error('Error deleting blog post:', error);
+      return { success: false, message: 'Network error. Please try again.' };
+    }
+  };
+
+  const deleteAccount = async (password) => {
+    setDeleteAccountLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/user/delete-account`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          password: password
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        logout();
+        navigate('/login');
+        addToast('Account deleted successfully', 'success');
+        return { success: true, message: 'Account deleted successfully!' };
+      } else {
+        return { success: false, message: data.message || 'Failed to delete account' };
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      return { success: false, message: 'Network error. Please try again.' };
+    } finally {
+      setDeleteAccountLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -88,21 +278,85 @@ const Dashboard = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      // Handle form submission here
-      console.log('Form submitted:', formData);
-      // Reset form
-      setFormData({ category: '', title: '', description: '' });
-      setErrors({});
+      let result;
+      
+      if (editingPost) {
+        result = await updateBlogPost(editingPost.id, formData);
+      } else {
+        result = await createBlogPost(formData);
+      }
+      
+      if (result.success) {
+        // Reset form
+        setFormData({ category: '', title: '', description: '' });
+        setErrors({});
+        setEditingPost(null);
+        // Switch to blogs tab to show the new/updated post
+        setActiveTab('blogs');
+        // Show modern toast notification
+        addToast(result.message, 'success');
+      } else {
+        addToast(result.message, 'error');
+      }
+    }
+  };
+
+  const handleEdit = (post) => {
+    setEditingPost(post);
+    setFormData({
+      category: post.category,
+      title: post.title,
+      description: post.description
+    });
+    setActiveTab('create');
+  };
+
+  const handleDelete = (post) => {
+    setPostToDelete(post);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (postToDelete) {
+      const result = await deleteBlogPost(postToDelete.id);
+      if (result.success) {
+        addToast(result.message, 'success');
+      } else {
+        addToast(result.message, 'error');
+      }
+    }
+    setShowDeleteConfirm(false);
+    setPostToDelete(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingPost(null);
+    setFormData({ category: '', title: '', description: '' });
+    setErrors({});
+    setActiveTab('blogs');
+  };
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    if (!deleteAccountPassword.trim()) {
+      addToast('Please enter your password', 'error');
+      return;
+    }
+
+    const result = await deleteAccount(deleteAccountPassword);
+    if (!result.success) {
+      addToast(result.message, 'error');
     }
   };
 
   const sidebarItems = [
     { id: 'overview', label: 'Overview', icon: Home },
-    { id: 'blogs', label: 'See all Blogs', icon: FileText },
-    { id: 'create', label: 'Create new Blog', icon: Plus },
+    { id: 'blogs', label: 'My Blogs', icon: FileText },
+    { id: 'create', label: 'Create New Blog', icon: Plus },
+    { id: 'explore', label: 'Explore All Blogs', icon: Globe },
     { id: 'account', label: 'Manage Account', icon: Settings }
   ];
 
@@ -120,88 +374,150 @@ const Dashboard = () => {
     );
   }
 
-  const renderOverview = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center">
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <FileText className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Posts</p>
-              <p className="text-2xl font-bold text-gray-900">{userPosts.length}</p>
-            </div>
-          </div>
+  const renderOverview = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900">Overview</h2>
+          <Button 
+            onClick={() => {
+              fetchUserPosts(true);
+              fetchDashboardStats();
+            }}
+            variant="outline"
+            size="sm"
+            className="flex items-center space-x-2"
+            disabled={postsLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${postsLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </Button>
         </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center">
-            <div className="p-3 bg-green-100 rounded-lg">
-              <Heart className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Likes</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {userPosts.reduce((sum, post) => sum + post.likes, 0)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center">
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <MessageCircle className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Comments</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {userPosts.reduce((sum, post) => sum + post.comments, 0)}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
-        </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            {userPosts.slice(0, 3).map((post) => (
-              <div key={post.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h3 className="font-medium text-gray-900">{post.title}</h3>
-                  <p className="text-sm text-gray-600">{post.category} • {post.createdAt}</p>
-                </div>
-                <div className="flex items-center space-x-4 text-sm text-gray-600">
-                  <span className="flex items-center">
-                    <Eye className="h-4 w-4 mr-1" />
-                    {post.views}
-                  </span>
-                  <span className="flex items-center">
-                    <Heart className="h-4 w-4 mr-1" />
-                    {post.likes}
-                  </span>
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <FileText className="h-6 w-6 text-blue-600" />
               </div>
-            ))}
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Your Posts</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalBlogs}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="p-3 bg-green-100 rounded-lg">
+                <Heart className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Likes</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalLikes}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <MessageCircle className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Comments</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalComments}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <Eye className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Views</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalViews.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center">
+              <div className="p-3 bg-indigo-100 rounded-lg">
+                <Globe className="h-6 w-6 text-indigo-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Your Blogs</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalBlogs}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="p-6 border-b border-gray-100">
+            <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {dashboardStats.blogs.slice(0, 3).map((blog) => (
+                <div key={blog.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <h3 className="font-medium text-gray-900">{blog.title}</h3>
+                    <p className="text-sm text-gray-600">{new Date(blog.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <span className="flex items-center">
+                      <Eye className="h-4 w-4 mr-1" />
+                      {blog.views || 0}
+                    </span>
+                    <span className="flex items-center">
+                      <Heart className="h-4 w-4 mr-1" />
+                      {blog.likes || 0}
+                    </span>
+                    <span className="flex items-center">
+                      <MessageCircle className="h-4 w-4 mr-1" />
+                      {blog.comments || 0}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {dashboardStats.blogs.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No blogs yet. Create your first blog to see activity here!</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderBlogs = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">All Your Posts</h2>
-        <Button onClick={() => setActiveTab('create')} className="bg-purple-600 hover:bg-purple-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Create New Post
-        </Button>
+        <div className="flex items-center space-x-3">
+          <Button 
+            onClick={() => fetchUserPosts(true)}
+            variant="outline"
+            size="sm"
+            className="flex items-center space-x-2"
+            disabled={postsLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${postsLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </Button>
+          <Button onClick={() => setActiveTab('create')} className="bg-purple-600 hover:bg-purple-700">
+            <Plus className="h-4 w-4 mr-2" />
+            Create New Post
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -209,8 +525,8 @@ const Dashboard = () => {
           {userPosts.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No posts yet</h3>
-              <p className="text-gray-600 mb-4">Start writing your first blog post!</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No blogs posted yet!</h3>
+              <p className="text-gray-600 mb-4">Start writing your first blog post and share your thoughts with the world!</p>
               <Button onClick={() => setActiveTab('create')} className="bg-purple-600 hover:bg-purple-700">
                 <Plus className="h-4 w-4 mr-2" />
                 Create Your First Post
@@ -227,26 +543,38 @@ const Dashboard = () => {
                         <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">
                           {post.category}
                         </span>
-                        <span>{post.createdAt}</span>
+                        <span>{new Date(post.created_at).toLocaleDateString()}</span>
                         <span className="flex items-center">
                           <Eye className="h-4 w-4 mr-1" />
-                          {post.views} views
+                          {parseInt(post.views) || 0} views
                         </span>
                         <span className="flex items-center">
                           <Heart className="h-4 w-4 mr-1" />
-                          {post.likes} likes
+                          {parseInt(post.likes) || 0} likes
                         </span>
                         <span className="flex items-center">
                           <MessageCircle className="h-4 w-4 mr-1" />
-                          {post.comments} comments
+                          {parseInt(post.comments_count) || 0} comments
                         </span>
                       </div>
+                      <p className="text-gray-600 text-sm line-clamp-2">
+                        {post.description.substring(0, 150)}...
+                      </p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEdit(post)}
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-red-600 hover:bg-red-50"
+                        onClick={() => handleDelete(post)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -263,7 +591,9 @@ const Dashboard = () => {
   const renderCreatePost = () => (
     <div className="max-w-4xl mx-auto">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Create a New Blog Post</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">
+          {editingPost ? 'Edit Blog Post' : 'Create a New Blog Post'}
+        </h2>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Category Dropdown */}
@@ -336,7 +666,7 @@ const Dashboard = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setActiveTab('overview')}
+              onClick={editingPost ? cancelEdit : () => setActiveTab('overview')}
               className="px-6"
             >
               Cancel
@@ -344,15 +674,31 @@ const Dashboard = () => {
             <Button
               type="submit"
               className="bg-purple-600 hover:bg-purple-700 px-6"
+              disabled={submitting}
             >
-              <Save className="h-4 w-4 mr-2" />
-              Post
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {editingPost ? 'Updating...' : 'Posting...'}
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {editingPost ? 'Update' : 'Post'}
+                </>
+              )}
             </Button>
           </div>
         </form>
       </div>
     </div>
   );
+
+  const renderExplore = () => {
+    // Navigate to explore page
+    navigate('/explore');
+    return null;
+  };
 
   const renderManageAccount = () => (
     <div className="max-w-2xl mx-auto">
@@ -432,6 +778,26 @@ const Dashboard = () => {
               Save Changes
             </Button>
           </div>
+
+          {/* Delete Account Section */}
+          <div className="border-t border-gray-200 pt-6 mt-8">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center space-x-3 mb-3">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <h3 className="text-lg font-semibold text-red-900">Danger Zone</h3>
+              </div>
+              <p className="text-red-700 text-sm mb-4">
+                Once you delete your account, there is no going back. Please be certain.
+              </p>
+              <Button
+                onClick={() => setShowDeleteAccountModal(true)}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Account
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -445,6 +811,8 @@ const Dashboard = () => {
         return renderBlogs();
       case 'create':
         return renderCreatePost();
+      case 'explore':
+        return renderExplore();
       case 'account':
         return renderManageAccount();
       default:
@@ -510,6 +878,98 @@ const Dashboard = () => {
           {renderContent()}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Confirm Delete</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "{postToDelete?.title}"? This action cannot be undone and the post will be permanently removed.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700"
+                onClick={confirmDelete}
+              >
+                Delete Post
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Modal */}
+      {showDeleteAccountModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Account</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+            </p>
+            <form onSubmit={handleDeleteAccount} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enter your password to confirm
+                </label>
+                <input
+                  type="password"
+                  value={deleteAccountPassword}
+                  onChange={(e) => setDeleteAccountPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowDeleteAccountModal(false);
+                    setDeleteAccountPassword('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-red-600 hover:bg-red-700"
+                  disabled={deleteAccountLoading}
+                >
+                  {deleteAccountLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Account
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

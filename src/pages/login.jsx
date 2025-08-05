@@ -48,8 +48,13 @@ const Login = () => {
       if (data.success) {
         // Login user using context
         login(data.user);
-        // Redirect to dashboard
-        navigate('/dashboard');
+        
+        // Check if user is admin and redirect accordingly
+        if (data.user.isAdmin) {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setError(data.message || 'Login failed. Please try again.');
       }

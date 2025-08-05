@@ -76,7 +76,7 @@ const Navbar = () => {
               <Search className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-300" />
               Search
             </Button>
-            <Button asChild className="group bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+            <Button asChild className="group bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:shadow-purple-200">
               <Link to="/login">
                 <span className="flex items-center whitespace-nowrap">
                   Login
@@ -84,10 +84,10 @@ const Navbar = () => {
                 </span>
               </Link>
             </Button>
-            <Button variant="outline" asChild className="group border-2 border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl">
+            <Button variant="outline" asChild className="group border-2 border-purple-600 text-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-pink-600 hover:text-white transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-purple-200">
               <Link to="/signup">
                 <span className="flex items-center whitespace-nowrap">
-                  Sign Up
+                  Get Started
                   <span className="ml-2 group-hover:translate-x-1 transition-transform duration-300">→</span>
                 </span>
               </Link>
@@ -140,14 +140,14 @@ const Navbar = () => {
             </button>
             
             <div className="pt-4 border-t border-gray-200 space-y-3">
-              <Button className="w-full" asChild>
+              <Button className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:shadow-purple-200" asChild>
                 <Link to="/login" onClick={() => setIsMenuOpen(false)}>
                   Login
                 </Link>
               </Button>
-              <Button variant="outline" className="w-full" asChild>
+              <Button variant="outline" className="w-full border-2 border-purple-600 text-purple-600 hover:bg-gradient-to-r hover:from-purple-600 hover:to-pink-600 hover:text-white transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-purple-200" asChild>
                 <Link to="/signup" onClick={() => setIsMenuOpen(false)}>
-                  Sign Up
+                  Get Started
                 </Link>
               </Button>
             </div>

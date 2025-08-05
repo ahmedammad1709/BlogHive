@@ -211,7 +211,7 @@ export default function HomePage() {
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" className="group border-2 border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white transition-all duration-300 transform hover:scale-105 whitespace-nowrap" asChild>
-                  <Link to="/explore">
+                  <Link to="/signup">
                     <span className="flex items-center">
                       Explore Blogs
                       <ExternalLink className="ml-2 h-5 w-5 group-hover:rotate-12 transition-transform" />

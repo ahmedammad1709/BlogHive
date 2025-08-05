@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   FileText, 
@@ -52,44 +53,37 @@ import {
   Flag,
   Award,
   Gift,
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { useToast } from '../components/ui/toast';
 
 const Admin = () => {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalBlogs: 0,
+    bannedUsers: 0,
+    totalLikes: 0,
+    totalViews: 0
+  });
+  const [users, setUsers] = useState([]);
+  const [blogs, setBlogs] = useState([]);
+  const [dailyPosts, setDailyPosts] = useState([]);
+  const [userSignups, setUserSignups] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [blogToDelete, setBlogToDelete] = useState(null);
   const [notificationData, setNotificationData] = useState({
     title: '',
     description: '',
     sendToAll: false,
     selectedUsers: []
   });
-
-  // Mock data - replace with actual API calls
-  const mockData = {
-    stats: {
-      totalUsers: 1234,
-      totalBlogs: 567,
-      bannedUsers: 23,
-      totalLikes: 8901,
-      totalComments: 3456
-    },
-    users: [
-      { id: 1, name: 'John Doe', email: 'john@example.com', posts: 15, status: 'active', signupDate: '2024-01-15', avatar: 'JD' },
-      { id: 2, name: 'Jane Smith', email: 'jane@example.com', posts: 8, status: 'active', signupDate: '2024-02-20', avatar: 'JS' },
-      { id: 3, name: 'Bob Wilson', email: 'bob@example.com', posts: 0, status: 'banned', bannedDate: '2024-03-10', avatar: 'BW' },
-      { id: 4, name: 'Alice Brown', email: 'alice@example.com', posts: 12, status: 'active', signupDate: '2024-01-30', avatar: 'AB' },
-    ],
-    blogs: [
-      { id: 1, title: 'Getting Started with React', author: 'John Doe', category: 'Technology', date: '2024-03-15', status: 'published', views: 1250 },
-      { id: 2, title: 'CSS Best Practices', author: 'Jane Smith', category: 'Design', date: '2024-03-14', status: 'published', views: 890 },
-      { id: 3, title: 'JavaScript Tips', author: 'Alice Brown', category: 'Programming', date: '2024-03-13', status: 'draft', views: 0 },
-    ],
-    dailyPosts: [12, 15, 8, 20, 18, 25, 22],
-    userSignups: [45, 52, 38, 61, 55, 48, 67, 59, 42, 51, 58, 63, 49, 56, 62, 47, 53, 60, 44, 50, 57, 64, 46, 54, 61, 48, 55, 59, 52, 47]
-  };
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3, color: 'from-blue-500 to-purple-600' },
@@ -99,34 +93,217 @@ const Admin = () => {
     { id: 'account', label: 'Account', icon: Settings, color: 'from-indigo-500 to-purple-600' }
   ];
 
-  const handleBanUser = (userId) => {
-    console.log('Banning user:', userId);
+  // Fetch admin statistics
+  const fetchStats = async () => {
+    try {
+      console.log('Fetching admin stats...');
+      const response = await fetch('http://localhost:5000/api/admin/stats');
+      const data = await response.json();
+      console.log('Stats response:', data);
+      
+      if (data.success) {
+        setStats(data.stats);
+        setDailyPosts(data.dailyPosts);
+        setUserSignups(data.userSignups);
+        console.log('Stats updated:', data.stats);
+      } else {
+        console.error('Failed to fetch stats:', data.message);
+        addToast('Failed to fetch statistics', 'error');
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      addToast('Error fetching statistics', 'error');
+    }
   };
 
-  const handleUnbanUser = (userId) => {
-    console.log('Unbanning user:', userId);
+  // Fetch all users
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      console.log('Fetching users...');
+      const response = await fetch('http://localhost:5000/api/admin/users');
+      const data = await response.json();
+      console.log('Users response:', data);
+      
+      if (data.success) {
+        setUsers(data.users);
+        console.log('Users updated:', data.users);
+      } else {
+        console.error('Failed to fetch users:', data.message);
+        addToast('Failed to fetch users', 'error');
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      addToast('Error fetching users', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteBlog = (blogId) => {
-    console.log('Deleting blog:', blogId);
+  // Fetch all blogs
+  const fetchBlogs = async () => {
+    setLoading(true);
+    try {
+      console.log('Fetching blogs...');
+      const response = await fetch('http://localhost:5000/api/admin/blogs');
+      const data = await response.json();
+      console.log('Blogs response:', data);
+      
+      if (data.success) {
+        setBlogs(data.blogs);
+        console.log('Blogs updated:', data.blogs);
+      } else {
+        console.error('Failed to fetch blogs:', data.message);
+        addToast('Failed to fetch blogs', 'error');
+      }
+    } catch (error) {
+      console.error('Error fetching blogs:', error);
+      addToast('Error fetching blogs', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Ban user
+  const handleBanUser = async (userId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/admin/users/${userId}/ban`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        addToast('User banned successfully', 'success');
+        await fetchUsers();
+        await fetchStats();
+      } else {
+        addToast(data.message || 'Failed to ban user', 'error');
+      }
+    } catch (error) {
+      console.error('Error banning user:', error);
+      addToast('Error banning user', 'error');
+    }
+  };
+
+  // Unban user
+  const handleUnbanUser = async (userId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/admin/users/${userId}/unban`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        addToast('User unbanned successfully', 'success');
+        await fetchUsers();
+        await fetchStats();
+      } else {
+        addToast(data.message || 'Failed to unban user', 'error');
+      }
+    } catch (error) {
+      console.error('Error unbanning user:', error);
+      addToast('Error unbanning user', 'error');
+    }
+  };
+
+  // Delete blog
+  const handleDeleteBlog = (blog) => {
+    setBlogToDelete(blog);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteBlog = async () => {
+    if (blogToDelete) {
+      try {
+        const response = await fetch(`http://localhost:5000/api/admin/blogs/${blogToDelete.id}`, {
+          method: 'DELETE',
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          addToast('Blog deleted successfully', 'success');
+          await fetchBlogs();
+          await fetchStats();
+        } else {
+          addToast(data.message || 'Failed to delete blog', 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting blog:', error);
+        addToast('Error deleting blog', 'error');
+      }
+    }
+    setShowDeleteConfirm(false);
+    setBlogToDelete(null);
   };
 
   const handleSendNotification = () => {
-    console.log('Sending notification:', notificationData);
+    addToast('Notification feature coming soon!', 'default');
   };
 
-  const filteredUsers = mockData.users.filter(user => 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchStats();
+    fetchUsers();
+    fetchBlogs();
+  }, []);
+
+  // Filter users and blogs based on search term
+  const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredBlogs = mockData.blogs.filter(blog => 
+  const filteredBlogs = blogs.filter(blog => 
     blog.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    blog.author.toLowerCase().includes(searchTerm.toLowerCase())
+    blog.author_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const activeUsers = filteredUsers.filter(user => user.status === 'active');
-  const bannedUsers = filteredUsers.filter(user => user.status === 'banned');
+  const activeUsers = filteredUsers.filter(user => !user.banned);
+  const bannedUsers = filteredUsers.filter(user => user.banned);
+
+  // Generate chart data for daily posts
+  const generateDailyPostsData = () => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const data = new Array(7).fill(0);
+    
+    dailyPosts.forEach(post => {
+      const date = new Date(post.date);
+      const dayIndex = date.getDay();
+      data[dayIndex] = parseInt(post.count);
+    });
+    
+    return data;
+  };
+
+  // Generate chart data for user signups
+  const generateUserSignupsData = () => {
+    const data = new Array(30).fill(0);
+    
+    userSignups.forEach(signup => {
+      const date = new Date(signup.date);
+      const daysAgo = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysAgo < 30) {
+        data[29 - daysAgo] = parseInt(signup.count);
+      }
+    });
+    
+    return data;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
@@ -198,7 +375,7 @@ const Admin = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-blue-100 text-sm font-medium">Total Users</p>
-                      <p className="text-3xl font-bold">{mockData.stats.totalUsers.toLocaleString()}</p>
+                      <p className="text-3xl font-bold">{stats.totalUsers.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-white/20 rounded-xl">
                       <Users className="h-8 w-8" />
@@ -206,7 +383,7 @@ const Admin = () => {
                   </div>
                   <div className="flex items-center mt-4">
                     <TrendingUp className="h-4 w-4 text-green-300" />
-                    <span className="text-sm text-blue-100 ml-2">+12% from last month</span>
+                    <span className="text-sm text-blue-100 ml-2">Active platform users</span>
                   </div>
                 </div>
 
@@ -214,7 +391,7 @@ const Admin = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-green-100 text-sm font-medium">Total Blogs</p>
-                      <p className="text-3xl font-bold">{mockData.stats.totalBlogs.toLocaleString()}</p>
+                      <p className="text-3xl font-bold">{stats.totalBlogs.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-white/20 rounded-xl">
                       <FileText className="h-8 w-8" />
@@ -222,7 +399,7 @@ const Admin = () => {
                   </div>
                   <div className="flex items-center mt-4">
                     <TrendingUp className="h-4 w-4 text-green-300" />
-                    <span className="text-sm text-green-100 ml-2">+8% from last month</span>
+                    <span className="text-sm text-green-100 ml-2">Published content</span>
                   </div>
                 </div>
 
@@ -230,7 +407,7 @@ const Admin = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-red-100 text-sm font-medium">Banned Users</p>
-                      <p className="text-3xl font-bold">{mockData.stats.bannedUsers}</p>
+                      <p className="text-3xl font-bold">{stats.bannedUsers}</p>
                     </div>
                     <div className="p-3 bg-white/20 rounded-xl">
                       <UserX className="h-8 w-8" />
@@ -238,7 +415,7 @@ const Admin = () => {
                   </div>
                   <div className="flex items-center mt-4">
                     <AlertTriangle className="h-4 w-4 text-red-300" />
-                    <span className="text-sm text-red-100 ml-2">-5% from last month</span>
+                    <span className="text-sm text-red-100 ml-2">Restricted accounts</span>
                   </div>
                 </div>
 
@@ -246,7 +423,7 @@ const Admin = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-pink-100 text-sm font-medium">Total Likes</p>
-                      <p className="text-3xl font-bold">{mockData.stats.totalLikes.toLocaleString()}</p>
+                      <p className="text-3xl font-bold">{stats.totalLikes.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-white/20 rounded-xl">
                       <Heart className="h-8 w-8" />
@@ -254,23 +431,23 @@ const Admin = () => {
                   </div>
                   <div className="flex items-center mt-4">
                     <TrendingUp className="h-4 w-4 text-pink-300" />
-                    <span className="text-sm text-pink-100 ml-2">+15% from last month</span>
+                    <span className="text-sm text-pink-100 ml-2">User engagement</span>
                   </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl transform hover:scale-105 transition-all duration-300">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-purple-100 text-sm font-medium">Total Comments</p>
-                      <p className="text-3xl font-bold">{mockData.stats.totalComments.toLocaleString()}</p>
+                      <p className="text-purple-100 text-sm font-medium">Total Views</p>
+                      <p className="text-3xl font-bold">{stats.totalViews.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-white/20 rounded-xl">
-                      <MessageSquare className="h-8 w-8" />
+                      <Eye className="h-8 w-8" />
                     </div>
                   </div>
                   <div className="flex items-center mt-4">
                     <TrendingUp className="h-4 w-4 text-purple-300" />
-                    <span className="text-sm text-purple-100 ml-2">+22% from last month</span>
+                    <span className="text-sm text-purple-100 ml-2">Content reach</span>
                   </div>
                 </div>
               </div>
@@ -285,8 +462,8 @@ const Admin = () => {
                     <h3 className="text-lg font-semibold text-gray-900">Daily New Posts (Last 7 Days)</h3>
                   </div>
                   <div className="flex items-end space-x-2 h-32">
-                    {mockData.dailyPosts.map((value, index) => (
-                      <div key={index} className="flex-1 bg-gradient-to-t from-blue-500 to-blue-600 rounded-t-lg shadow-lg" style={{ height: `${(value / 25) * 100}%` }}>
+                    {generateDailyPostsData().map((value, index) => (
+                      <div key={index} className="flex-1 bg-gradient-to-t from-blue-500 to-blue-600 rounded-t-lg shadow-lg" style={{ height: `${Math.max((value / Math.max(...generateDailyPostsData(), 1)) * 100, 10)}%` }}>
                         <div className="text-xs text-center text-white mt-1 font-medium">{value}</div>
                       </div>
                     ))}
@@ -306,8 +483,8 @@ const Admin = () => {
                     <h3 className="text-lg font-semibold text-gray-900">User Signups (Last 30 Days)</h3>
                   </div>
                   <div className="flex items-end space-x-1 h-32">
-                    {mockData.userSignups.map((value, index) => (
-                      <div key={index} className="flex-1 bg-gradient-to-t from-green-500 to-green-600 rounded-t-lg shadow-lg" style={{ height: `${(value / 70) * 100}%` }}>
+                    {generateUserSignupsData().map((value, index) => (
+                      <div key={index} className="flex-1 bg-gradient-to-t from-green-500 to-green-600 rounded-t-lg shadow-lg" style={{ height: `${Math.max((value / Math.max(...generateUserSignupsData(), 1)) * 100, 10)}%` }}>
                         <div className="text-xs text-center text-white mt-1 font-medium">{value}</div>
                       </div>
                     ))}
@@ -339,124 +516,133 @@ const Admin = () => {
                       className="pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 backdrop-blur-sm"
                     />
                   </div>
-                  <Button className="flex items-center space-x-2 bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 shadow-lg">
-                    <Filter className="h-4 w-4" />
-                    <span>Filter</span>
-                  </Button>
                 </div>
               </div>
 
-              {/* Active Users */}
-              <div className="mb-8">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
-                    <UserCheck className="h-5 w-5 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Active Users</h3>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">{activeUsers.length}</span>
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading users...</p>
                 </div>
-                <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full">
-                      <thead className="bg-gradient-to-r from-green-500 to-teal-600">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">User</th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Email</th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Posts</th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Signup Date</th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {activeUsers.map((user) => (
-                          <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                  {user.avatar}
-                                </div>
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                                  <div className="text-sm text-gray-500">ID: {user.id}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                                {user.posts} posts
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.signupDate}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <Button
-                                onClick={() => handleBanUser(user.id)}
-                                className="flex items-center space-x-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg"
-                              >
-                                <Ban className="h-4 w-4" />
-                                <span>Ban User</span>
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              ) : (
+                <>
+                  {/* Active Users */}
+                  <div className="mb-8">
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
+                        <UserCheck className="h-5 w-5 text-white" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">Active Users</h3>
+                      <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">{activeUsers.length}</span>
+                    </div>
+                    <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                          <thead className="bg-gradient-to-r from-green-500 to-teal-600">
+                            <tr>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">User</th>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Email</th>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Posts</th>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Signup Date</th>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {activeUsers.map((user) => (
+                              <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold">
+                                      {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                      <div className="text-sm text-gray-500">ID: {user.id}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                                    {user.posts_count} posts
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {new Date(user.created_at).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <Button
+                                    onClick={() => handleBanUser(user.id)}
+                                    className="flex items-center space-x-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg"
+                                  >
+                                    <Ban className="h-4 w-4" />
+                                    <span>Ban User</span>
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Banned Users */}
-              <div>
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="p-2 bg-gradient-to-r from-red-500 to-red-600 rounded-lg">
-                    <UserMinus className="h-5 w-5 text-white" />
+                  {/* Banned Users */}
+                  <div>
+                    <div className="flex items-center space-x-3 mb-6">
+                      <div className="p-2 bg-gradient-to-r from-red-500 to-red-600 rounded-lg">
+                        <UserMinus className="h-5 w-5 text-white" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">Banned Users</h3>
+                      <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">{bannedUsers.length}</span>
+                    </div>
+                    <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                          <thead className="bg-gradient-to-r from-red-500 to-red-600">
+                            <tr>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">User</th>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Email</th>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Banned Date</th>
+                              <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {bannedUsers.map((user) => (
+                              <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-full flex items-center justify-center text-white font-semibold">
+                                      {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                      <div className="text-sm text-gray-500">ID: {user.id}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {user.banned_at ? new Date(user.banned_at).toLocaleDateString() : 'N/A'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <Button
+                                    onClick={() => handleUnbanUser(user.id)}
+                                    className="flex items-center space-x-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg"
+                                  >
+                                    <Unlock className="h-4 w-4" />
+                                    <span>Unban User</span>
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Banned Users</h3>
-                  <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">{bannedUsers.length}</span>
-                </div>
-                <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full">
-                      <thead className="bg-gradient-to-r from-red-500 to-red-600">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">User</th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Email</th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Banned Date</th>
-                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {bannedUsers.map((user) => (
-                          <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                  {user.avatar}
-                                </div>
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                                  <div className="text-sm text-gray-500">ID: {user.id}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.bannedDate}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <Button
-                                onClick={() => handleUnbanUser(user.id)}
-                                className="flex items-center space-x-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg"
-                              >
-                                <Unlock className="h-4 w-4" />
-                                <span>Unban User</span>
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           )}
 
@@ -481,91 +667,75 @@ const Admin = () => {
                       className="pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white/50 backdrop-blur-sm"
                     />
                   </div>
-                  <Button className="flex items-center space-x-2 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 shadow-lg">
-                    <Filter className="h-4 w-4" />
-                    <span>Filter</span>
-                  </Button>
                 </div>
               </div>
 
-              <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead className="bg-gradient-to-r from-orange-500 to-red-600">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Blog</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Author</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Category</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Views</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Date</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {filteredBlogs.map((blog) => (
-                        <tr key={blog.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">{blog.title}</div>
-                              <div className="text-sm text-gray-500">ID: {blog.id}</div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{blog.author}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full text-sm font-medium">
-                              {blog.category}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div className="flex items-center space-x-1">
-                              <Eye className="h-4 w-4 text-gray-400" />
-                              <span>{blog.views.toLocaleString()}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{blog.date}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              blog.status === 'published' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {blog.status === 'published' ? (
-                                <div className="flex items-center space-x-1">
-                                  <CheckCircle className="h-4 w-4" />
-                                  <span>Published</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-1">
-                                  <Clock className="h-4 w-4" />
-                                  <span>Draft</span>
-                                </div>
-                              )}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center space-x-2">
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading blogs...</p>
+                </div>
+              ) : (
+                <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead className="bg-gradient-to-r from-orange-500 to-red-600">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Blog</th>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Author</th>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Category</th>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Views</th>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Likes</th>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Date</th>
+                          <th className="px-6 py-4 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {filteredBlogs.map((blog) => (
+                          <tr key={blog.id} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{blog.title}</div>
+                                <div className="text-sm text-gray-500">ID: {blog.id}</div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{blog.author_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full text-sm font-medium">
+                                {blog.category}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div className="flex items-center space-x-1">
+                                <Eye className="h-4 w-4 text-gray-400" />
+                                <span>{blog.views.toLocaleString()}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div className="flex items-center space-x-1">
+                                <Heart className="h-4 w-4 text-red-400" />
+                                <span>{blog.likes.toLocaleString()}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(blog.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <Button
-                                onClick={() => handleDeleteBlog(blog.id)}
+                                onClick={() => handleDeleteBlog(blog)}
                                 className="flex items-center space-x-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg"
                               >
                                 <Trash2 className="h-4 w-4" />
                                 <span>Delete</span>
                               </Button>
-                              <Button
-                                className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg"
-                              >
-                                {blog.status === 'published' ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                <span>{blog.status === 'published' ? 'Unpublish' : 'Publish'}</span>
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -644,7 +814,7 @@ const Admin = () => {
                     <span>Select Users</span>
                   </h3>
                   <div className="bg-white/50 backdrop-blur-sm rounded-xl p-4 max-h-96 overflow-y-auto border border-gray-200">
-                    {mockData.users.filter(user => user.status === 'active').map((user) => (
+                    {users.filter(user => !user.banned).map((user) => (
                       <div key={user.id} className="flex items-center space-x-3 py-3 hover:bg-gray-50/50 rounded-lg px-2 transition-colors">
                         <input
                           type="checkbox"
@@ -652,7 +822,7 @@ const Admin = () => {
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                          {user.avatar}
+                          {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                         </div>
                         <label htmlFor={`user-${user.id}`} className="text-sm text-gray-700 cursor-pointer">
                           <div className="font-medium">{user.name}</div>
@@ -724,6 +894,16 @@ const Admin = () => {
                     <Button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-lg py-3 rounded-xl">
                       Update Password
                     </Button>
+
+                    <div className="pt-6 border-t border-gray-200">
+                      <Button 
+                        onClick={handleLogout}
+                        className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg py-3 rounded-xl flex items-center justify-center space-x-2"
+                      >
+                        <LogOut className="h-5 w-5" />
+                        <span>Logout</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -731,6 +911,37 @@ const Admin = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Confirm Delete</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "{blogToDelete?.title}"? This action cannot be undone and the blog will be permanently removed.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700"
+                onClick={confirmDeleteBlog}
+              >
+                Delete Blog
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
